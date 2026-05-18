@@ -1,6 +1,6 @@
 import cors from "cors";
 import dotenv from "dotenv";
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
 import { ExtractionError } from "./errors";
 import { extractCandidatesWithOpenAI } from "./openaiExtractor";
 import type { ExtractionResponse } from "../src/domain/types";
@@ -11,6 +11,47 @@ type Extractor = (text: string) => Promise<ExtractionResponse>;
 
 type CreateAppOptions = {
   extractor?: Extractor;
+};
+
+type BodyParserError = Error & {
+  status?: number;
+  statusCode?: number;
+  type?: string;
+};
+
+const isBodyParserError = (
+  error: unknown,
+  type: "entity.parse.failed" | "entity.too.large",
+  statusCode: number,
+): error is BodyParserError => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const bodyParserError = error as BodyParserError;
+  return (
+    bodyParserError.type === type &&
+    (bodyParserError.status === statusCode || bodyParserError.statusCode === statusCode)
+  );
+};
+
+const apiErrorHandler: ErrorRequestHandler = (error, _request, response, next) => {
+  if (response.headersSent) {
+    next(error);
+    return;
+  }
+
+  if (isBodyParserError(error, "entity.parse.failed", 400)) {
+    response.status(400).json({ error: "请求 JSON 格式错误。" });
+    return;
+  }
+
+  if (isBodyParserError(error, "entity.too.large", 413)) {
+    response.status(413).json({ error: "请求内容过大，请控制在 1MB 以内。" });
+    return;
+  }
+
+  response.status(500).json({ error: "服务暂时不可用，请稍后重试。" });
 };
 
 export const createApp = ({ extractor = extractCandidatesWithOpenAI }: CreateAppOptions = {}) => {
@@ -43,6 +84,8 @@ export const createApp = ({ extractor = extractCandidatesWithOpenAI }: CreateApp
       response.status(500).json({ error: "AI 提取服务暂时不可用，请稍后重试。" });
     }
   });
+
+  app.use(apiErrorHandler);
 
   return app;
 };

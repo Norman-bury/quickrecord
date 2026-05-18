@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 import { ExtractionError } from "./errors";
 import { createApp } from "./index";
 
+describe("GET /api/health", () => {
+  it("returns ok", async () => {
+    const response = await request(createApp()).get("/api/health");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+  });
+});
+
 describe("POST /api/extract", () => {
   it("rejects empty text", async () => {
     const app = createApp();
@@ -47,5 +56,34 @@ describe("POST /api/extract", () => {
 
     expect(response.status).toBe(500);
     expect(response.body.error).toBe("未配置 OPENAI_API_KEY，无法调用 OpenAI API。");
+  });
+
+  it("returns a public JSON error for malformed JSON", async () => {
+    const response = await request(createApp())
+      .post("/api/extract")
+      .set("Content-Type", "application/json")
+      .send("{");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "请求 JSON 格式错误。" });
+  });
+
+  it("returns a public JSON error when the payload is over 1MB", async () => {
+    const response = await request(createApp())
+      .post("/api/extract")
+      .send({ text: "候选人".repeat(600_000) });
+
+    expect(response.status).toBe(413);
+    expect(response.body).toEqual({ error: "请求内容过大，请控制在 1MB 以内。" });
+  });
+
+  it("does not leak generic extractor errors", async () => {
+    const extractor = vi.fn().mockRejectedValue(new Error("upstream secret stack detail"));
+
+    const response = await request(createApp({ extractor })).post("/api/extract").send({ text: "候选人" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe("AI 提取服务暂时不可用，请稍后重试。");
+    expect(response.body.error).not.toContain("upstream secret");
   });
 });
