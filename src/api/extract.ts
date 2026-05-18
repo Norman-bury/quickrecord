@@ -1,7 +1,19 @@
-import type { ExtractionResponse } from "../domain/types";
+import { STAGES, type Candidate, type ExtractionResponse } from "../domain/types";
 
 const FALLBACK_ERROR_MESSAGE = "AI 提取失败，请稍后重试。";
 const INVALID_RESPONSE_MESSAGE = "AI 返回数据格式异常，请重试。";
+const REQUIRED_STRING_FIELDS = [
+  "id",
+  "name",
+  "role",
+  "source",
+  "stage",
+  "owner",
+  "interviewTime",
+  "lastContact",
+  "risk",
+  "summary",
+] as const;
 
 const readJson = async (response: Response): Promise<unknown> => {
   try {
@@ -9,6 +21,20 @@ const readJson = async (response: Response): Promise<unknown> => {
   } catch {
     return undefined;
   }
+};
+
+const isCandidate = (value: unknown): value is Candidate => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    REQUIRED_STRING_FIELDS.every((field) => typeof candidate[field] === "string") &&
+    (STAGES as readonly string[]).includes(candidate.stage as string) &&
+    typeof candidate.confidence === "number"
+  );
 };
 
 export const extractCandidates = async (text: string): Promise<ExtractionResponse> => {
@@ -34,5 +60,9 @@ export const extractCandidates = async (text: string): Promise<ExtractionRespons
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
 
-  return payload as ExtractionResponse;
+  if (!payload.candidates.every(isCandidate)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  return { candidates: payload.candidates };
 };

@@ -6,6 +6,31 @@ describe("extractCandidates", () => {
     vi.restoreAllMocks();
   });
 
+  it("returns candidates from a valid success response", async () => {
+    const candidates = [
+      {
+        id: "4-许宁",
+        name: "许宁",
+        role: "数据分析师",
+        source: "官网投递",
+        stage: "已入职",
+        owner: "Mia",
+        interviewTime: "下周一",
+        lastContact: "今天",
+        risk: "",
+        summary: "已经接受 offer，下周一入职",
+        confidence: 0.88,
+      },
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates }),
+    } as Response);
+
+    await expect(extractCandidates("招聘记录")).resolves.toEqual({ candidates });
+  });
+
   it("throws JSON error payloads returned by the endpoint", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
@@ -30,6 +55,15 @@ describe("extractCandidates", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ items: [] }),
+    } as Response);
+
+    await expect(extractCandidates("招聘记录")).rejects.toThrow("AI 返回数据格式异常，请重试。");
+  });
+
+  it("throws when a successful response contains a malformed candidate", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{}] }),
     } as Response);
 
     await expect(extractCandidates("招聘记录")).rejects.toThrow("AI 返回数据格式异常，请重试。");
