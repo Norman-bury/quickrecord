@@ -4,9 +4,29 @@ import { normalizeExtractionPayload } from "./normalize";
 import { extractionJsonSchema } from "./schema";
 import type { ExtractionResponse } from "../src/domain/types";
 
-type ResponsesClient = {
+export type OpenAIExtractionRequest = {
+  model: string;
+  input: Array<{
+    role: "system" | "user";
+    content: string;
+  }>;
+  text: {
+    format: {
+      type: "json_schema";
+      name: "recruiting_extraction";
+      strict: true;
+      schema: typeof extractionJsonSchema;
+    };
+  };
+};
+
+type OpenAIExtractionResponse = {
+  output_text?: string;
+};
+
+export type ResponsesClient = {
   responses: {
-    create: (params: Record<string, unknown>) => Promise<{ output_text?: string }>;
+    create: (params: OpenAIExtractionRequest) => Promise<OpenAIExtractionResponse>;
   };
 };
 
@@ -34,14 +54,16 @@ export const extractCandidatesWithOpenAI = async (
   text: string,
   injectedClient?: ResponsesClient,
 ): Promise<ExtractionResponse> => {
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+
+  if (!apiKey) {
     throw new ExtractionError("未配置 OPENAI_API_KEY，无法调用 OpenAI API。", 500);
   }
 
-  const client = injectedClient ?? new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = injectedClient ?? new OpenAI({ apiKey });
   const model = process.env.OPENAI_MODEL || "gpt-5.5";
 
-  const response = await client.responses.create({
+  const request: OpenAIExtractionRequest = {
     model,
     input: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -55,7 +77,9 @@ export const extractCandidatesWithOpenAI = async (
         schema: extractionJsonSchema,
       },
     },
-  });
+  };
+
+  const response = await client.responses.create(request);
 
   return parseOpenAIOutput(response.output_text);
 };
