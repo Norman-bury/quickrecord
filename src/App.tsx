@@ -15,12 +15,16 @@ import { calculateChannelStats, calculateFunnel, calculateOverview, getRiskCandi
 import { STAGES, type Candidate, type Stage } from "./domain/types";
 
 const formatConfidence = (confidence: number) => `${Math.round(confidence * 100)}%`;
+type Message = {
+  text: string;
+  type: "success" | "error";
+};
 
 export default function App() {
   const [inputText, setInputText] = useState(sampleChatLog);
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<Message | null>(null);
 
   const overview = useMemo(() => calculateOverview(candidates), [candidates]);
   const funnel = useMemo(() => calculateFunnel(candidates), [candidates]);
@@ -30,19 +34,19 @@ export default function App() {
 
   const handleExtract = async () => {
     if (!inputText.trim()) {
-      setMessage("请先输入招聘沟通记录。");
+      setMessage({ text: "请先输入招聘沟通记录。", type: "error" });
       return;
     }
 
     setIsExtracting(true);
-    setMessage("");
+    setMessage({ text: "AI 正在提取候选人记录。", type: "success" });
 
     try {
       const result = await extractCandidates(inputText);
       setCandidates((current) => mergeCandidates(current, result.candidates));
-      setMessage(`AI 已提取 ${result.candidates.length} 条候选人记录，并同步刷新看板。`);
+      setMessage({ text: `AI 已提取 ${result.candidates.length} 条候选人记录，并同步刷新看板。`, type: "success" });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "AI 提取失败，请稍后重试。");
+      setMessage({ text: error instanceof Error ? error.message : "AI 提取失败，请稍后重试。", type: "error" });
     } finally {
       setIsExtracting(false);
     }
@@ -105,17 +109,21 @@ export default function App() {
             <Bot size={18} />
             {isExtracting ? "提取中..." : "AI 提取"}
           </button>
-          {message ? <p className="status-message">{message}</p> : null}
+          {message ? (
+            <p className="status-message" role={message.type === "error" ? "alert" : "status"}>
+              {message.text}
+            </p>
+          ) : null}
         </aside>
 
         <section className="dashboard-grid">
           <section className="panel candidate-panel">
             <div className="section-title">
-              <h2>候选人流水</h2>
+              <h2 id="candidate-table-title">候选人流水</h2>
               <span>{candidates.length} 条记录</span>
             </div>
             <div className="table-wrap">
-              <table>
+              <table aria-labelledby="candidate-table-title">
                 <thead>
                   <tr>
                     <th>候选人</th>

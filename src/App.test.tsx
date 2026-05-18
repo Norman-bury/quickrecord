@@ -43,4 +43,35 @@ describe("App", () => {
       expect(screen.getByText("未配置 OPENAI_API_KEY，无法调用 OpenAI API。")).toBeInTheDocument();
     });
   });
+
+  it("merges successfully extracted candidates and shows a status message", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            id: "4-许宁",
+            name: "许宁",
+            role: "数据分析师",
+            source: "官网投递",
+            stage: "已入职",
+            owner: "Mia",
+            interviewTime: "下周一",
+            lastContact: "今天",
+            risk: "",
+            summary: "已经接受 offer，下周一入职",
+            confidence: 0.88,
+          },
+        ],
+      }),
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "AI 提取" }));
+
+    expect(await screen.findByText("许宁")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("AI 已提取 1 条候选人记录，并同步刷新看板。");
+  });
 });
