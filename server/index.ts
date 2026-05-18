@@ -19,6 +19,28 @@ type BodyParserError = Error & {
   type?: string;
 };
 
+class CorsOriginError extends Error {
+  public readonly statusCode = 403;
+
+  constructor() {
+    super("Disallowed CORS origin");
+    this.name = "CorsOriginError";
+  }
+}
+
+const ALLOWED_DEV_ORIGINS = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+
+const corsMiddleware = cors({
+  origin(origin, callback) {
+    if (!origin || ALLOWED_DEV_ORIGINS.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new CorsOriginError());
+  },
+});
+
 const isBodyParserError = (
   error: unknown,
   type: "entity.parse.failed" | "entity.too.large",
@@ -41,6 +63,11 @@ const apiErrorHandler: ErrorRequestHandler = (error, _request, response, next) =
     return;
   }
 
+  if (error instanceof CorsOriginError) {
+    response.status(error.statusCode).json({ error: "不允许的请求来源。" });
+    return;
+  }
+
   if (isBodyParserError(error, "entity.parse.failed", 400)) {
     response.status(400).json({ error: "请求 JSON 格式错误。" });
     return;
@@ -57,7 +84,7 @@ const apiErrorHandler: ErrorRequestHandler = (error, _request, response, next) =
 export const createApp = ({ extractor = extractCandidatesWithOpenAI }: CreateAppOptions = {}) => {
   const app = express();
 
-  app.use(cors());
+  app.use(corsMiddleware);
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/api/health", (_request, response) => {
@@ -94,7 +121,9 @@ const isDirectRun = process.argv[1]?.endsWith("server/index.ts");
 
 if (isDirectRun) {
   const port = Number(process.env.PORT || 8787);
-  createApp().listen(port, () => {
-    console.log(`Recruiting cockpit API listening on http://localhost:${port}`);
+  const host = process.env.HOST || "127.0.0.1";
+
+  createApp().listen(port, host, () => {
+    console.log(`Recruiting cockpit API listening on http://${host}:${port}`);
   });
 }

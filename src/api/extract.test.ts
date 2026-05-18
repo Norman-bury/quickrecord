@@ -51,6 +51,12 @@ describe("extractCandidates", () => {
     await expect(extractCandidates("招聘记录")).rejects.toThrow("AI 提取失败，请稍后重试。");
   });
 
+  it("uses a controlled fallback error when the network request is rejected", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Failed to fetch"));
+
+    await expect(extractCandidates("招聘记录")).rejects.toThrow("AI 提取失败，请稍后重试。");
+  });
+
   it("throws when a successful response has an invalid shape", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,

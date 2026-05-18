@@ -11,6 +11,21 @@ describe("GET /api/health", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ ok: true });
   });
+
+  it.each(["http://localhost:5173", "http://127.0.0.1:5173"])("allows the local Vite origin %s", async (origin) => {
+    const response = await request(createApp()).get("/api/health").set("Origin", origin);
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe(origin);
+    expect(response.body).toEqual({ ok: true });
+  });
+
+  it("rejects non-local browser origins with a public JSON error", async () => {
+    const response = await request(createApp()).get("/api/health").set("Origin", "https://example.com");
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "不允许的请求来源。" });
+  });
 });
 
 describe("POST /api/extract", () => {

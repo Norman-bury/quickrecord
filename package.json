@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "client": "vite --host 0.0.0.0",
+    "client": "vite --host 127.0.0.1",
     "server": "tsx server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",

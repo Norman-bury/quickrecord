@@ -38,11 +38,17 @@ const isCandidate = (value: unknown): value is Candidate => {
 };
 
 export const extractCandidates = async (text: string): Promise<ExtractionResponse> => {
-  const response = await fetch("/api/extract", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch {
+    throw new Error(FALLBACK_ERROR_MESSAGE);
+  }
 
   const payload = await readJson(response);
 

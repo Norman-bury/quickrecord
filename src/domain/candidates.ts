@@ -44,15 +44,32 @@ export const normalizeCandidate = (candidate: CandidateInput, index = 0): Candid
   confidence: Math.min(1, Math.max(0, candidate.confidence ?? 0.5)),
 });
 
+const normalizeBusinessKeyPart = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
+
+const getCandidateBusinessKey = (candidate: Candidate) =>
+  [candidate.name, candidate.role, candidate.source].map(normalizeBusinessKeyPart).join("|");
+
 export const mergeCandidates = (current: Candidate[], incoming: Candidate[]) => {
   const byKey = new Map<string, Candidate>();
 
   for (const candidate of current) {
-    byKey.set(candidate.id, candidate);
+    byKey.set(getCandidateBusinessKey(candidate), candidate);
   }
 
   for (const candidate of incoming) {
-    byKey.set(candidate.id, candidate);
+    const key = getCandidateBusinessKey(candidate);
+    const existing = byKey.get(key);
+
+    byKey.set(
+      key,
+      existing
+        ? {
+            ...candidate,
+            id: existing.id,
+            stage: existing.stage,
+          }
+        : candidate,
+    );
   }
 
   return Array.from(byKey.values());
